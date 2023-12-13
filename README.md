@@ -4,7 +4,7 @@ Code for the paper:
 
 [Naeem Iqbal](https://www.dfki.de/web/ueber-uns/mitarbeiter/person/naiq01), [Christoph Manss](https://www.dfki.de/web/ueber-uns/mitarbeiter/person/chma05),[Christian Scholz](https://www.hs-osnabrueck.de/forschung/recherche/laboreinrichtungen-und-versuchsbetriebe/labor-fuer-mikro-und-optoelektronik/team/#c605134), [Daniel Koenig](https://www.hs-osnabrueck.de/forschung/recherche/laboreinrichtungen-und-versuchsbetriebe/labor-fuer-mikro-und-optoelektronik/team/#c759389), [Matthias Igelbrink](https://www.hs-osnabrueck.de/forschung/recherche/laboreinrichtungen-und-versuchsbetriebe/labor-fuer-mikro-und-optoelektronik/team/#c605123), [Arno Ruckelshausen](	https://www.hs-osnabrueck.de/forschung/recherche/laboreinrichtungen-und-versuchsbetriebe/labor-fuer-mikro-und-optoelektronik/team/#c15056) 
 
-"[AI-based Maize and Weeds Detection on the Edge with CornWeed Dataset]()", FedCSIS AgriAI2023
+"[AI-based Maize and Weeds Detection on the Edge with CornWeed Dataset](https://annals-csis.org/proceedings/2023/pliks/2125.pdf)", FedCSIS AgriAI2023
 
 ## Container build
 For `amd64` systems:
