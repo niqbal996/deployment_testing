@@ -50,7 +50,7 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
     Returns:
          list of detections, on (n,6) tensor per image [xyxy, conf, cls]
     """
-    prediction = torch.tensor(prediction, device='cuda:0')
+    prediction = torch.tensor(prediction, device='cpu')
     nc = prediction.shape[2] - 5  # number of classes
     xc = prediction[..., 4] > conf_thres  # candidates
 
