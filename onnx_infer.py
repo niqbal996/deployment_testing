@@ -2,7 +2,8 @@
 
 # ROS imports
 import rospy
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
+
 import os
 # Further imports
 import yaml
@@ -13,7 +14,9 @@ import torch
 import torchvision.transforms as T
 import onnxruntime
 import cv2
+from cv_bridge import CvBridge, CvBridgeError
 import imutils
+
 
 try:
     from yolo_nms import scale_boxes, non_max_suppression
@@ -85,10 +88,15 @@ class OnnxInfer():
 
         # initialize transforms
         self.transforms = T.Resize((self.input_shape[1], self.input_shape[2]))
-
+        self.bridge = CvBridge()
         self.detection = rospy.Publisher(output_topic, Image, queue_size=10)
         self.class_ids = {0: 'weeds', 1: 'maize'}
-        rospy.Subscriber(topic, Image, self.image_callback)
+        self.orig_shape = None 
+        if 'compressed' in topic:
+            self.compressed = True
+            rospy.Subscriber(topic, CompressedImage, self.image_callback)
+        else:
+            rospy.Subscriber(topic, Image, self.image_callback)
         rospy.spin()
 
     def scale_boxes(self, boxes, current_size=(800, 1067), new_size=(1536, 2048)):
@@ -125,11 +133,17 @@ class OnnxInfer():
     def image_callback(self,msg):
         # print('[INFO] Received an image message . . ')
         t1 = time.time()
-        in_tensor = np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.width, 3)
-        orig = in_tensor.copy()
+        if self.compressed:
+            self.in_tensor = self.bridge.compressed_imgmsg_to_cv2(msg)
+            # self.in_tensor = cv2.imread('coco.jpg')
+            self.orig_shape = self.in_tensor.shape[0:2]
+        else:
+            self.in_tensor = np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.width, 3)
+            self.orig_shape = [msg.height, msg.width]
+        orig = self.in_tensor.copy()
         if len(self.input_shape) == 4:
-            self.in_tensor = cv2.cvtColor(in_tensor.copy(), cv2.COLOR_RGB2BGR)
-            orig = in_tensor.copy()
+            self.in_tensor = cv2.cvtColor(self.in_tensor.copy(), cv2.COLOR_RGB2BGR)
+            orig = self.in_tensor.copy()
             img_0 = np.zeros((self.input_shape[2], self.input_shape[3], 3), dtype=np.float32)
             self.in_tensor = imutils.resize(self.in_tensor, width=self.input_shape[2])
             p_h, p_w = self.in_tensor.shape[0], self.in_tensor.shape[1]
@@ -141,8 +155,11 @@ class OnnxInfer():
             self.in_tensor = self.in_tensor.astype(self.dtype) / 255.0
             self.in_tensor = np.expand_dims(self.in_tensor, axis=0)
         else:
-            self.in_tensor = cv2.resize(in_tensor, (self.input_shape[1], self.input_shape[2])).astype(self.dtype)
-            self.in_tensor = np.transpose(self.in_tensor, (2, 1, 0))
+            # cv2.imwrite('orig.jpg',self.in_tensor)
+            self.in_tensor = cv2.resize(self.in_tensor, (self.input_shape[2], self.input_shape[1])).astype(self.dtype)
+            # cv2.imwrite('input.jpg',self.in_tensor)
+            # cv2.waitKey(0)
+            self.in_tensor = np.transpose(self.in_tensor, (2, 0, 1))
         if self.use_io_binding:
             self.session.run_with_iobinding(self.io_binding)
             pred = self.io_binding.copy_outputs_to_cpu()
@@ -164,17 +181,17 @@ class OnnxInfer():
             filtered[1] = pred[:, 5]
             filtered[2] = pred[:, 4]        
         else:
-            conf_inds = np.where(pred[2] > 0.50)
+            conf_inds = np.where((pred[2] > 0.3) & (pred[1] == 0))
             filtered = {}
             filtered[0] = pred[0][conf_inds]
             filtered[1] = pred[1][conf_inds]
             filtered[2] = pred[2][conf_inds]
             # filtered[3] = pred[3]
             filtered[0] = self.scale_boxes(filtered[0],
-                                            current_size=(self.input_shape[2],
-                                                        self.input_shape[1]),
-                                            new_size=(msg.width,
-                                                    msg.height))
+                                            current_size=(self.input_shape[1],
+                                                        self.input_shape[2]),
+                                            new_size=(self.orig_shape[0],
+                                                      self.orig_shape[1]))
 
 
         for obj in range(filtered[0].shape[0]):
@@ -201,8 +218,8 @@ class OnnxInfer():
         # msg_frame = self.bridge.cv2_to_imgmsg(orig, encoding="rgb8")
         pub_msg = Image()
         pub_msg.header.stamp = rospy.Time.now()
-        pub_msg.height=msg.height
-        pub_msg.width=msg.width
+        pub_msg.height=self.orig_shape[0]
+        pub_msg.width=self.orig_shape[1 ]
         pub_msg.encoding="bgr8"
         pub_msg.is_bigendian=False
         pub_msg.data = np.array(orig).tobytes()
@@ -213,8 +230,8 @@ class OnnxInfer():
 if __name__ == '__main__':
     OnnxInfer(
             #   model_path='/opt/fcos_R_50_1x.onnx',
-            model_path='/workspace/ros_5g/yolov5n.onnx',
+            model_path='/opt/workspace/retinanet_coco/1/model.onnx',
             # model_path='/dino_r50_4scale_12ep_512edge.onnx',
-              topic='/camera/color/image_raw',
+              topic='/ai_test_field/edge/hsos/sensors/zed2i/zed_node/rgb/image_rect_color/compressed',
               output_topic='/camera/color/detections', 
               io_binding=False)
