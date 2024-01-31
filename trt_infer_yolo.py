@@ -8,6 +8,7 @@ __email__       = "naeem.iqbal@dfki.de"
 import os
 # Further imports
 import time
+import argparse
 import numpy as np
 import torchvision.transforms as T
 import cv2
@@ -52,6 +53,7 @@ def _cuda_error_check(args):
 class TrtInfer():
     def __init__(self, 
                  trt_engine_path, 
+                 confidence=0.5,
                  topic='None', 
                  output_topic='None', 
                  batch_size=1, 
@@ -61,6 +63,7 @@ class TrtInfer():
         self.cuda_ctx = device.make_context()
         self.engine_path = trt_engine_path
         self.dtype = np.int8
+        self.confidence = confidence
         self.logger = trt.Logger(trt.Logger.ERROR)
         self.batch_size = 1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
         trt.init_libnvinfer_plugins(self.logger, namespace="")
@@ -191,7 +194,7 @@ class TrtInfer():
                 self.stream.synchronize()
                 t3 = time.time()
                 inference_time=round((t3-t2)*1000, 2)
-                pred = non_max_suppression(pred[0], conf_thres=0.4)
+                pred = non_max_suppression(pred[0], conf_thres=self.confidence)
                 filtered = pred[0].cpu()
                 if len(pred[0]) != 0:
                     filtered = self.scale_boxes(filtered,
@@ -303,7 +306,7 @@ class TrtInfer():
             # out.host = out.host.reshape()
             pred.append(out.host.reshape(self.output_shape))
         self.stream.synchronize()
-        pred = non_max_suppression(pred[0], conf_thres=0.3)
+        pred = non_max_suppression(pred[0], conf_thres=self.confidence)
         filtered = pred[0].cpu()
         if len(pred[0]) != 0:
             filtered = self.scale_boxes(filtered,
@@ -341,7 +344,12 @@ class TrtInfer():
         
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--conf', type=float, default=0.5)
+    # parser.add_argument('--model', type=str, default='retina')
+    args = parser.parse_args()
     TrtInfer(trt_engine_path='yolov5m_coco/1/yolov5m_coco_int8_v8.5.2.engine', 
+             confidence=args.conf,
              topic='/ai_test_field/edge/hsos/sensors/zed2i/zed_node/rgb/image_rect_color/compressed',
              output_topic='/camera/color/detections',
              mode='ros')

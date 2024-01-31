@@ -16,6 +16,7 @@ import onnxruntime
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
 import imutils
+import argparse
 
 
 try:
@@ -24,9 +25,10 @@ except Exception as e:
     print("Import error")
 
 class OnnxInfer():
-    def __init__(self, model_path, topic, output_topic, io_binding=False):
+    def __init__(self, model_path, topic, output_topic, confidence=0.5, io_binding=False):
         rospy.init_node('onnx_infer')
         self.model_path = model_path
+        self.confidence = confidence
         if 'yolo' in model_path:
             self.yolo = True
         else:
@@ -167,7 +169,7 @@ class OnnxInfer():
             pred = self.session.run(None, {self.input_name: self.in_tensor})
         # print('Inference done') 
         if self.yolo:
-            pred = non_max_suppression(pred[0], conf_thres=0.5)
+            pred = non_max_suppression(pred[0], conf_thres=self.confidence)
             # pred = self._scale_box_array(pred[0].cpu().numpy(),
             #                              source_dim=(288, 512),
             #                              orig_size=(720, 1280),
@@ -181,7 +183,7 @@ class OnnxInfer():
             filtered[1] = pred[:, 5]
             filtered[2] = pred[:, 4]        
         else:
-            conf_inds = np.where((pred[2] > 0.3) & (pred[1] == 0))
+            conf_inds = np.where((pred[2] > self.confidence) & (pred[1] == 0))
             filtered = {}
             filtered[0] = pred[0][conf_inds]
             filtered[1] = pred[1][conf_inds]
@@ -228,10 +230,15 @@ class OnnxInfer():
         # rospy.loginfo('Single image inference time: {:.2f} seconds and FPS {:.3f}'.format(t2 - t1, 1 / (t2 - t1)))
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--conf', type=float, default=0.5)
+    parser.add_argument('--model', type=str, default='retina')
+    args = parser.parse_args()
     OnnxInfer(
             #   model_path='/opt/fcos_R_50_1x.onnx',
-            model_path='/opt/workspace/retinanet_coco/1/model.onnx',
+            model_path='/models/retinanet_coco/1/model.onnx',
             # model_path='/dino_r50_4scale_12ep_512edge.onnx',
               topic='/ai_test_field/edge/hsos/sensors/zed2i/zed_node/rgb/image_rect_color/compressed',
               output_topic='/camera/color/detections', 
+              confidence=args.conf,
               io_binding=False)
